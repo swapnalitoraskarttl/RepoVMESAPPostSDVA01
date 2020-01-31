@@ -1,15 +1,98 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="
-       http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
-       http://camel.apache.org/schema/spring       http://camel.apache.org/schema/spring/camel-spring.xsd">
-
-    <camelContext id="camel" xmlns="http://camel.apache.org/schema/spring">
+    xmlns:cxf="http://camel.apache.org/schema/cxf"
+    xmlns:util="http://www.springframework.org/schema/util"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="          http://www.springframework.org/schema/beans           http://www.springframework.org/schema/beans/spring-beans.xsd     http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd       http://camel.apache.org/schema/cxf           http://camel.apache.org/schema/cxf/camel-cxf.xsd                http://camel.apache.org/schema/spring                 http://camel.apache.org/schema/spring/camel-spring.xsd">
+<bean class="com.tml.vmepost.LogAggregator" id="logger"/>
+<bean id="gson" class="org.apache.camel.component.gson.GsonDataFormat">
+        <!-- we want to unmarshal to person pojo -->
+        <property name="unmarshalType" value="com.tml.vmepost.Vmepostresponse"/>
+        <!-- we want to map fields to use lower case and underscores -->
+        <property name="fieldNamingPolicy" value="LOWER_CASE_WITH_UNDERSCORES"/>
+    </bean> 
+      <util:map id="myMap">
+        <entry key="http://www.w3.org/2003/05/soap-envelope" value="soap"/>
+    </util:map>
+    <bean class="org.mycompany.ResponseProcessor" id="resProcessor"/>  
+    
+<camelContext id="camel" streamCache="true"  xmlns="http://camel.apache.org/schema/spring">
+         <dataFormats>
+            <jaxb contextPath="com.tml.vmepost" id="xml"
+                objectFactory="true" prettyPrint="true"/>
+            <json id="json" library="Jackson" unmarshalTypeName="com.tml.vmepost.Vmepostresponse"/>
+            <json id="gson" library="Gson"/>
+            <soapjaxb contextPath="com.tml.vmepost" id="soapxml" namespacePrefixRef="myMap"/>
+        </dataFormats>
+        <restConfiguration apiContextPath="docs" bindingMode="json"
+            component="servlet" contextPath="/api/cordys"/>
+        <rest id="getData">
+            <!-- START OF REST CONFIG -->
+            <get consumes="application/json"
+                id="get-4f189bc2-5eb7-4b10-840c-26943dac5360"
+                produces="application/json" uri="/">
+                <description>To fetch details of claim</description>
+                <!--  <param dataType="string" name="pICLAIM" required="true" type="header"/>-->
+                <to uri="direct:getClaimData"/>
+            </get>
+        </rest>
         <route id="simple-route">
-            <from id="route-timer" uri="timer://foo?period=1000"/>
-            <setBody id="route-setBody"><simple>Hello World from camel-context.xml</simple></setBody>
-            <log id="route-log" message=">>> ${body}"/>
-        </route>
+            <from id="_from1" uri="direct:getClaimData"/>
+           
+            <!--  <to id="_to2" pattern="InOut" uri="direct:getClaimData"/>  -->
+             <doTry id="_doTry1"> 
+             
+                <log id="_log1" message="after setting constant headers____${body}"/>
+                <bean id="_bean66"
+                method="request(******* Request Received from User *********)" ref="logger"/>
+                 <setHeader headerName="Content-Type" id="_setHeader4">
+                    <constant>application/json</constant>
+                </setHeader>
+                 <setHeader headerName="ROUTE" id="_setHeader7">
+                    <jsonpath>$.ROUTE</jsonpath>
+                </setHeader>
+                                    <setHeader
+                                    headerName="TCODE" id="_setHeader22">
+                                    <jsonpath>$.TCODE</jsonpath>
+                                    </setHeader>
+                 <setHeader
+                                    headerName="responseBody" id="_setHeader11">
+                                    <jsonpath>$.ItOrder</jsonpath>
+                                    </setHeader>
+                                     <log id="simple-route" message=">>>>> ${header.responseBody}"/>
+                                     
+                                     <bean id="_bean1"
+                                    method="process" ref="resProcessor"/>
+                                   <bean id="_bean77"
+                                    method="response(API RESPONSE :: *****)" ref="logger"/>
+                                    <log id="simple-route" message=">>>>> ${body}"/>
+                                    <unmarshal id="_unmarshal1" ref="json"/>
+                                    <bean id="_bean78"
+                                    method="unmarshal(unmarshal API RESPONSE :: *****)" ref="logger"/>
+                                     <log id="simple-route" message=">>>>> ${body}"/>
+                                    <marshal id="_marshal24" ref="soapxml"/>
+                                    <bean id="_bean79"
+                                    method="marshal(marshal API RESPONSE :: *****)" ref="logger"/>
+                                     <log id="simple-route" message=">>>>> ${body}"/>
+                                     
+                                     <loop>
+    									<constant>2</constant>
+    										<log id="simple-route" message=">>>>> ${body}"/>
+    
+  										</loop>
+               
+                             
+ 
+            </doTry>
+        </route>          
+        
+         
     </camelContext>
+    <bean
+        class="org.apache.camel.component.servlet.CamelHttpTransportServlet" id="camelHttpTransportServlet"/>
+    <bean
+        class="org.springframework.boot.web.servlet.ServletRegistrationBean" id="servlet">
+        <property name="name" value="CamelServlet"/>
+        <property name="servlet" ref="camelHttpTransportServlet"/>
+        <property name="urlMappings" value="/api/cordys/*"/>
+    </bean>
 </beans>
